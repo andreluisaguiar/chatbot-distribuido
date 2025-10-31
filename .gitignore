@@ -1,0 +1,16 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+.vscode/           
+.idea/           
+*.sublime-workspace
+.env
+postgres_data/
+redis_data/
+grafana_data/
+*.log
+logs/

@@ -1,0 +1,8 @@
+fastapi                  # Framework web assíncrono para a API
+uvicorn                  # Servidor ASGI para rodar o FastAPI
+asyncpg                  # Driver assíncrono para PostgreSQL
+sqlalchemy               # ORM (Object-Relational Mapper)
+pika                     # Cliente Python para AMQP (RabbitMQ)
+redis                    # Cliente Python para Redis
+httpx                    # Cliente HTTP assíncrono moderno (para chamar API da OpenAI/Hugging Face)
+prometheus_client        # Biblioteca para exportar métricas customizadas

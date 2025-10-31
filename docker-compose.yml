@@ -1,0 +1,124 @@
+# docker-compose.yml
+
+version: '3.8'
+
+services:
+  # 1. Serviço de Mensageria (RabbitMQ) - OS1, OS3
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    hostname: "rabbitmq" # Garante nome de rede
+    ports:
+      - "5672:5672"
+      - "15672:15672" # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER} 
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    restart: always
+    networks:
+      - chatbot-net
+
+  # 2. Banco de Dados (PostgreSQL)
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    hostname: "postgres" # Garante nome de rede
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    restart: always
+    networks:
+      - chatbot-net
+
+  # 3. Cache Distribuído (Redis)
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cache
+    hostname: "redis" # Garante nome de rede
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    restart: always
+    networks:
+      - chatbot-net
+
+  # 4. API Gateway (Frontend, Produção de Mensagens)
+  api_gateway:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: api_gateway
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    env_file:
+      - .env 
+    depends_on:
+      - rabbitmq
+      - postgres
+      - redis
+    command: uvicorn app.main:app --host 0.0.0.0 --port ${BACKEND_PORT} --workers 1 
+    networks:
+      - chatbot-net
+
+  # 5. IA Worker (Consumidor de Mensagens, Lógica de IA) - OS3, OS5
+  ia_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ia_worker_1 
+    env_file:
+      - .env 
+    depends_on:
+      - rabbitmq
+      - postgres
+      - redis
+    command: python app/consumers/ia_consumer.py
+    # A configuração 'scale: 3' define 3 réplicas deste serviço.
+    # Isto é uma simulação de MÚLTIPLOS PROCESSOS/MÁQUINAS processando a fila.
+    deploy:
+      replicas: 3
+    networks:
+      - chatbot-net
+  # 6. Monitoramento (Prometheus) - OS4
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus_monitor
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - "9090:9090"
+    networks:
+      - chatbot-net
+
+  # 7. Visualização (Grafana) - OS4
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana_dashboards
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning/:/etc/grafana/provisioning/
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - chatbot-net
+
+# Definição dos Volumes
+volumes:
+  postgres_data:
+  redis_data:
+  grafana_data:
+
+# Definição da Rede de Comunicação (VITAL para SD)
+networks:
+  chatbot-net:
+    driver: bridge
