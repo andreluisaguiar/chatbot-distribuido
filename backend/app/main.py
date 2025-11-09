@@ -1,50 +1,40 @@
-# backend/app/main.py
+from fastapi import FastAPI # type: ignore
+from .api import chat, websocket 
+from .consumers.response_consumer import start_response_consumer
+from .services.database_service import init_db 
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException # pyright: ignore[reportMissingImports]
-from pydantic import BaseModel # pyright: ignore[reportMissingImports]
-import uuid
-import time
-# Importar o serviço que acabamos de criar
-from .services.rabbitmq_service import publish_message 
 
-app = FastAPI(title="Chatbot API Gateway")
-
-# Modelo de dados Pydantic para a entrada da requisição
-class ChatMessage(BaseModel):
-    user_id: str
-    message: str
-
-# Rota principal para receber mensagens do usuário
-@app.post("/api/v1/chat")
-async def send_chat_message(msg: ChatMessage):
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- Evento de STARTUP (Inicialização dos Serviços) ---
     
-    # 1. Gerar ID da Mensagem (UUID, bom para SD)
-    message_id = str(uuid.uuid4())
+    # 1. Inicializa o Banco de Dados (Cria tabelas se não existirem)
+    await init_db()
+    print(" [API] Serviços de Banco de Dados inicializados.")
     
-    # 2. Preparar dados para a fila
+    # 2. Inicia o Consumidor de Respostas (RabbitMQ) em background
+    start_response_consumer() 
+    print(" [API] Consumidor de Respostas (RabbitMQ) iniciado.")
+    
+    print(" [API] Todos os serviços de startup concluídos.")
+    yield
+    # --- Evento de SHUTDOWN (Opcional) ---
+    print(" [API] Desligamento da aplicação.")
 
-    message_data = {
-        "message_id": message_id,
-        "session_id": msg.user_id, # Usando user_id como session_id simplificado
-        "content": msg.message,
-        "timestamp_sent": time.time() 
-    }
 
-    # 3. Publicar na Fila (Ação Assíncrona Principal)
-    if publish_message(message_data):
-        
-        return {
-            "status": "accepted",
-            "message_id": message_id,
-            "detail": "Mensagem enfileirada para processamento assíncrono."
-        }
-    else:
-        raise HTTPException(
-            status_code=503, 
-            detail="Serviço de Mensageria (RabbitMQ) Indisponível."
-        )
+app = FastAPI(
+    title="Chatbot API Gateway",
+    version="1.0.0",
+    description="API Gateway com comunicação assíncrona (RabbitMQ) e em tempo real (WebSocket).",
+    lifespan=lifespan # Associa o gerenciador de contexto ao ciclo de vida da aplicação
+)
+
+# Registra as rotas da API e WebSocket
+app.include_router(chat.router, prefix="/api/v1", tags=["Chat"])
+app.include_router(websocket.router) 
 
 # Rota de health check
 @app.get("/health")
-def health_check():
-    return {"status": "ok", "service": "API Gateway"}
+async def health_check():
+    return {"status": "ok", "message": "API Gateway está operacional"}
