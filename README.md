@@ -2,38 +2,49 @@
 
 ## 📍 1. Visão Geral do Projeto
 
-[cite_start]Este projeto é [cite: 6] [cite_start]desenvolvido para a disciplina de **Sistemas Distribuídos** [cite: 9] [cite_start]da Universidade Federal do Maranhão (UFMA) [cite: 24, 25][cite_start], no semestre 2025.2[cite: 10]. [cite_start]O objetivo é aplicar conceitos fundamentais de arquitetura distribuída, escalabilidade e tolerância a falhas[cite: 31, 34].
+Este projeto é um **Chatbot Inteligente** desenvolvido sob uma arquitetura de **Sistemas Distribuídos**, focado em escalabilidade horizontal, comunicação assíncrona via filas e alta disponibilidade. O projeto é um requisito da disciplina de Sistemas Distribuídos da UFMA (2025.2).
 
 ### 🎯 Objetivo Principal
+Desenvolver um chatbot inteligente baseado em arquitetura distribuída, capaz de atender múltiplos usuários simultaneamente, garantindo comunicação eficiente, escalabilidade e tolerância a falhas.
 
-[cite_start]Desenvolver um chatbot inteligente baseado em arquitetura distribuída, capaz de atender múltiplos usuários simultaneamente, garantindo comunicação eficiente, escalabilidade e tolerância a falhas[cite: 39, 41].
-
-### 👨‍💻 Equipe
-
-* [cite_start]**Professor Orientador:** Luiz Henrique Neves Rodrigues [cite: 11, 27]
-* [cite_start]**Discentes:** Andre Luis Aguiar do Nascimento, Daniel Lucas Silva Aires, Italo Francisco Almeida de Oliveira, Kaua Ferreira Galeno [cite: 12, 13, 26]
+### 📅 Status Atual (09/11/2025)
+A Fase de Execução do **Backend Core está concluída e validada** através de testes de integração de ponta a ponta. O ciclo completo de comunicação assíncrona (WebSocket $\rightarrow$ Fila $\rightarrow$ Worker $\rightarrow$ DB) está operacional.
 
 ---
 
-## 🏗️ 2. Arquitetura do Sistema Distribuído
+## 🏗️ 2. Arquitetura e Componentes Distribuídos
 
-O projeto adota uma arquitetura de microsserviços e comunicação assíncrona para garantir o desacoplamento e a escalabilidade.
+O sistema é dividido em microsserviços desacoplados que se comunicam primariamente via filas (RabbitMQ).
 
 ### 📦 Componentes Chave
 
-| Módulo | Tecnologia | Função no SD |
-| :--- | :--- | :--- |
-| **Backend (API)** | [cite_start]FastAPI (Python) ou Node.js [cite: 56] | [cite_start]Atua como Produtor de mensagens na fila[cite: 46]. |
-| **Mensageria** | [cite_start]**RabbitMQ** [cite: 58] | [cite_start]Canal de comunicação assíncrona para Desacoplamento e Resiliência (OS1)[cite: 43]. |
-| **Cache Distribuído** | [cite_start]**Redis** [cite: 60] | [cite_start]Cache distribuído [cite: 46] e gerenciamento rápido de estado de sessão. |
-| **Banco de Dados** | [cite_start]**PostgreSQL** [cite: 59] | [cite_start]Armazenamento persistente de dados relacionais[cite: 46]. |
-| **Frontend (UI)** | [cite_start]React + WebSocket [cite: 61] | [cite_start]Interface do usuário e comunicação em tempo real[cite: 47]. |
-| **IA/Processamento** | [cite_start]API Externa (OpenAI/Hugging Face) [cite: 62] | [cite_start]Serviço externo consumido para geração de respostas[cite: 48]. |
+| Módulo | Tecnologia | Função no SD | Critério Atendido (Exemplos) |
+| :--- | :--- | :--- | :--- |
+| **API Gateway** | FastAPI (Python) | Ponto de entrada (WebSocket) e **Produtor** de requisições. Recebe respostas da fila para enviar ao cliente. | OS1, OS3 |
+| **IA Worker** | FastAPI (Python) | **Consumidor** assíncrono. Responsável pelo processamento lento (simulação de IA) e persistência da resposta do Bot. | OS2, OS3, OS5 |
+| **Mensageria** | **RabbitMQ** | Middleware VITAL para comunicação assíncrona e desacoplamento entre a API e os Workers. | OS1 |
+| **Persistência** | **PostgreSQL + SQLAlchemy** | Armazenamento persistente de usuários e histórico de mensagens. | - |
+| **Observabilidade** | **Prometheus + Grafana** | Previsto para coletar e visualizar métricas de desempenho e *throughput*. | OS4 |
 
-### 🔍 Observabilidade e Testes
+---
 
-[cite_start]Para atender aos requisitos de monitoramento (OS4) e tolerância a falhas (OS5)[cite: 43]:
+## 🚀 3. Guia de Inicialização
 
-* [cite_start]**Monitoramento:** **Prometheus** + **Grafana** para coletar e visualizar métricas em tempo real[cite: 64, 49].
-* [cite_start]**Testes de Carga:** **k6** para simular 10+ usuários simultâneos[cite: 63, 49].
-* [cite_start]**Resiliência:** Validação da Tolerância a falhas (Sistema funcional após desligamento de um worker)[cite: 43, 50].
+### Pré-requisitos
+1.  **Git**, **Docker** (v2+) e **Docker Compose** (v2+).
+2.  **Node.js/npm** (necessário para a ferramenta de teste `wscat`).
+
+### 1. Iniciar o Ambiente Distribuído
+Execute na pasta raiz do projeto. O ambiente contém 10+ serviços e 3 réplicas do Worker.
+
+```bash
+# Sobe todos os serviços com reconstrução
+docker compose up --build -d
+
+## Teste de Conexão
+
+export TEST_USER_ID=$(uuidgen)
+docker compose exec postgres psql -U user -d db_chatbot -c "
+  INSERT INTO users (id, username) VALUES ('$TEST_USER_ID', 'test_user');
+  INSERT INTO chat_sessions (id, user_id, status) VALUES ('$TEST_USER_ID', '$TEST_USER_ID', 'ACTIVE');
+"
