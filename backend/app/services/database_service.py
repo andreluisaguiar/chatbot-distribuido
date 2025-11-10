@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession # type: ign
 from sqlalchemy.orm import sessionmaker # type: ignore
 from ..models.models import Base, User, ChatSession, Message
 import uuid
+from sqlalchemy.exc import IntegrityError # type: ignore
 
 # Lendo configurações do .env
 POSTGRES_USER = os.getenv("POSTGRES_USER")
@@ -38,11 +39,12 @@ async def get_db_session() -> AsyncSession:
         yield session
 
 async def save_message(session: AsyncSession, session_id: str, sender: str, content: str):
-
     try:
+        # opcional: verifica existência do usuário/entidade referenciada
         user = await session.get(User, uuid.UUID(session_id))
         if not user:
-             pass
+            # apenas continua; se houver FK inválida, IntegrityError será lançado
+            pass
 
         new_message = Message(
             session_id=uuid.UUID(session_id),
@@ -52,6 +54,10 @@ async def save_message(session: AsyncSession, session_id: str, sender: str, cont
         session.add(new_message)
         await session.commit()
         return True
+    except IntegrityError:
+        await session.rollback()
+        # retorno esperado em caso de falha de integridade (ex: FK inválida)
+        return False
     except Exception as e:
         await session.rollback()
         print(f" [DB ERROR] Falha ao salvar mensagem: {e}")

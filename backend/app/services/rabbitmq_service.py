@@ -12,7 +12,7 @@ QUEUE_NAME = 'q.ia_request'
 EXCHANGE_NAME = 'x.chat_requests'
 
 def get_rabbitmq_connection():
-    """Tenta estabelecer e retornar uma conexão com o RabbitMQ."""
+
     credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
     parameters = pika.ConnectionParameters(
         host=RABBITMQ_HOST,
@@ -25,9 +25,7 @@ def get_rabbitmq_connection():
     return pika.BlockingConnection(parameters)
 
 def publish_message(message_data: dict):
-    """
-    Publica uma mensagem na Exchange do RabbitMQ para processamento assíncrono.
-    """
+
     try:
         connection = get_rabbitmq_connection()
         channel = connection.channel()
