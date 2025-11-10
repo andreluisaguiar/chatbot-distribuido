@@ -6,3 +6,9 @@ pika                     # Cliente Python para AMQP (RabbitMQ)
 redis                    # Cliente Python para Redis
 httpx                    # Cliente HTTP assíncrono moderno (para chamar API da OpenAI/Hugging Face)
 prometheus_client        # Biblioteca para exportar métricas customizadas
+pytest                   # Framework de testes para Python
+pytest-asyncio        # Suporte para testes assíncronos com pytest
+sqlalchemy               # ORM (Object-Relational Mapper)
+aiosqlite           # Driver assíncrono para SQLite
+httpx                    # Cliente HTTP assíncrono moderno 
+requests                 # Cliente HTTP síncrono (Usado na simulação do Worker)

@@ -24,6 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 5. Código da Aplicação
 # Copia todo o código da aplicação para o container
 COPY ./app /app/app
+COPY ./tests /app/tests
 
 # 6. Comando de Execução (Será revisado na próxima etapa)
 # Define o comando padrão. Usaremos um script ou uvicorn para iniciar a API.
