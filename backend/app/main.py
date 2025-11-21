@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect # type: ignore
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Response # type: ignore
 import json
 import time
 import uuid
@@ -10,6 +10,8 @@ from .consumers.response_consumer import start_response_consumer
 from .services.database_service import init_db, AsyncSessionLocal, save_message
 from .services.rabbitmq_service import publish_message
 from .api.websocket import manager # Importa apenas o gerenciador de conexão (manager)
+from .services.metrics_service import get_metrics, websocket_message_duration, websocket_messages_total
+from prometheus_client import CONTENT_TYPE_LATEST # type: ignore
 
 
 @asynccontextmanager
@@ -34,6 +36,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Nota: Middleware de métricas removido temporariamente para evitar conflito com WebSocket
+# As métricas WebSocket são coletadas diretamente no endpoint
+
 # Registra rotas REST com prefixo
 app.include_router(chat.router, prefix="/api/v1", tags=["Chat"])
 
@@ -42,10 +47,17 @@ app.include_router(chat.router, prefix="/api/v1", tags=["Chat"])
 async def health_check():
     return {"status": "ok", "message": "API Gateway está operacional"}
 
+# Endpoint de métricas para Prometheus
+@app.get("/metrics")
+async def metrics():
+    return Response(content=get_metrics(), media_type=CONTENT_TYPE_LATEST)
+
 
 # --- ROTA WEB SOCKET FINAL E DIRETA ---
 @app.websocket("/ws_chat")
 async def websocket_endpoint(websocket: WebSocket):
+    # Aceita a conexão WebSocket primeiro
+    await websocket.accept()
     
     user_id = websocket.query_params.get("id") 
     
@@ -53,10 +65,9 @@ async def websocket_endpoint(websocket: WebSocket):
         await websocket.close(code=1008, reason="ID de usuário ausente.")
         return
     
-    # Validação (mantida)
-    try:
-        uuid.UUID(user_id)
-    except ValueError:
+    # Validação: aceita qualquer string não vazia como user_id
+    # (o frontend gera IDs no formato "user-xxx-timestamp")
+    if not user_id.strip():
         await websocket.close(code=1008, reason="ID de usuário/sessão inválido.")
         return
         
@@ -65,6 +76,9 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_text()
+            
+            # Inicia medição de latência para mensagem WebSocket
+            start_time = time.time()
             
             # --- Persistência (Database) ---
             async with AsyncSessionLocal() as db_session:
@@ -85,6 +99,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 json.dumps({"sender": "SYSTEM", "content": "Mensagem recebida e em processamento..."}), 
                 user_id
             )
+            
+            # Registra métricas de WebSocket
+            duration = time.time() - start_time
+            websocket_message_duration.labels(action="process_message").observe(duration)
+            websocket_messages_total.labels(action="process_message").inc()
 
     except WebSocketDisconnect:
         manager.disconnect(user_id)

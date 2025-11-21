@@ -40,12 +40,6 @@ async def get_db_session() -> AsyncSession:
 
 async def save_message(session: AsyncSession, session_id: str, sender: str, content: str):
     try:
-        # opcional: verifica existência do usuário/entidade referenciada
-        user = await session.get(User, uuid.UUID(session_id))
-        if not user:
-            # apenas continua; se houver FK inválida, IntegrityError será lançado
-            pass
-
         new_message = Message(
             session_id=uuid.UUID(session_id),
             sender=sender,
@@ -56,7 +50,7 @@ async def save_message(session: AsyncSession, session_id: str, sender: str, cont
         return True
     except IntegrityError:
         await session.rollback()
-        # retorno esperado em caso de falha de integridade (ex: FK inválida)
+        # retorno esperado em caso de falha de integridade (ex: FK inválida - session_id não existe)
         return False
     except Exception as e:
         await session.rollback()

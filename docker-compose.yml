@@ -62,9 +62,11 @@ services:
     command: python -m uvicorn app.main:app --host 0.0.0.0 --port ${BACKEND_PORT} --workers 1 
     networks:
       - chatbot-net
+    # Expor porta de métricas (mesma porta do servidor principal, endpoint /metrics)
 
   # 5. IA Worker (Consumidor de Mensagens, Lógica de IA) - OS3, OS5
-  ia_worker:
+  # Criando 3 réplicas manualmente para simular múltiplos workers
+  ia_worker_1:
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -75,10 +77,40 @@ services:
       - postgres
       - redis
     command: python app/consumers/ia_consumer.py
-    # A configuração 'scale: 3' define 3 réplicas deste serviço.
-    # Isto é uma simulação de MÚLTIPLOS PROCESSOS/MÁQUINAS processando a fila.
-    deploy:
-      replicas: 3
+    expose:
+      - "8000"  # Porta para métricas Prometheus
+    networks:
+      - chatbot-net
+
+  ia_worker_2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env 
+    depends_on:
+      - rabbitmq
+      - postgres
+      - redis
+    command: python app/consumers/ia_consumer.py
+    expose:
+      - "8000"
+    networks:
+      - chatbot-net
+
+  ia_worker_3:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env 
+    depends_on:
+      - rabbitmq
+      - postgres
+      - redis
+    command: python app/consumers/ia_consumer.py
+    expose:
+      - "8000"
     networks:
       - chatbot-net
   # 6. Monitoramento (Prometheus) - OS4

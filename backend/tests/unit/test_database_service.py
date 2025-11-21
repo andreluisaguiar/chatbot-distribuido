@@ -6,6 +6,7 @@ import uuid
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession # type: ignore
 from sqlalchemy.orm import sessionmaker # type: ignore
 from sqlalchemy.future import select # type: ignore
+from sqlalchemy import text # type: ignore
 from app.services.database_service import Base, save_message
 from app.models.models import User, Message, ChatSession
 
@@ -14,8 +15,23 @@ TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 @pytest_asyncio.fixture
 async def async_session_test():
-    # 1. Cria o Engine
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    # 1. Cria o Engine com evento para habilitar Foreign Keys em cada conexão
+    def enable_foreign_keys(dbapi_conn, connection_record):
+        dbapi_conn.execute("PRAGMA foreign_keys=ON")
+    
+    engine = create_async_engine(
+        TEST_DATABASE_URL, 
+        echo=False,
+        connect_args={"check_same_thread": False}
+    )
+    
+    # Registra evento para habilitar Foreign Keys em cada conexão
+    from sqlalchemy import event
+    @event.listens_for(engine.sync_engine, "connect")
+    def set_sqlite_pragma(dbapi_conn, connection_record):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
     
     # 2. Cria as tabelas
     async with engine.begin() as conn:
@@ -42,7 +58,10 @@ async def create_test_session(session: AsyncSession):
     test_user = User(id=user_id, username="test_user")
     test_session = ChatSession(id=session_id, user_id=user_id, status="ACTIVE")
     
+    # Adiciona User primeiro e faz flush para garantir que está no DB antes de criar ChatSession
     session.add(test_user)
+    await session.flush()  # Garante que o User é inserido antes do ChatSession
+    
     session.add(test_session)
     await session.commit()
     return str(session_id)

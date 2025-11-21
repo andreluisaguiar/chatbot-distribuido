@@ -1,0 +1,85 @@
+{
+  "dashboard": {
+    "title": "Chatbot Distribuído - Métricas",
+    "tags": ["chatbot", "distributed"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Latência HTTP (API Gateway)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "p50"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Latência"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Throughput IA Worker",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(ia_worker_messages_processed_total{status='success'}[5m])",
+            "legendFormat": "Mensagens/s"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Throughput"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Total de Requisições HTTP",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(http_requests_total[5m])",
+            "legendFormat": "{{method}} {{endpoint}}"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Requisições/s"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Latência WebSocket",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(websocket_message_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(websocket_message_duration_seconds_bucket[5m]))",
+            "legendFormat": "p50"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Latência"},
+          {"format": "short"}
+        ]
+      }
+    ],
+    "refresh": "10s",
+    "schemaVersion": 16,
+    "version": 1
+  }
+}
+
