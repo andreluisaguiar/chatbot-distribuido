@@ -6,9 +6,17 @@ import json
 import time
 import requests
 import asyncio
-from ..services.rabbitmq_service import get_rabbitmq_connection
-from ..services.database_service import save_message_sync 
-from ..services.database_service import save_message, AsyncSessionLocal # Para persistência real
+import sys
+from pathlib import Path
+from http.server import HTTPServer, BaseHTTPRequestHandler # type: ignore
+from threading import Thread # type: ignore
+from prometheus_client import Counter, generate_latest, CONTENT_TYPE_LATEST # type: ignore
+
+# Adiciona o diretório raiz ao path para imports absolutos
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from app.services.rabbitmq_service import get_rabbitmq_connection
+from app.services.database_service import save_message, AsyncSessionLocal # Para persistência real
 
 # --- Configurações (Lidas do .env) ---
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
@@ -19,6 +27,49 @@ EXCHANGE_NAME = 'x.chat_requests'
 
 RESPONSE_QUEUE_NAME = 'q.ia_response'
 RESPONSE_EXCHANGE_NAME = 'x.chat_responses'
+
+# Métricas de Throughput do Worker
+messages_processed_total = Counter(
+    'ia_worker_messages_processed_total',
+    'Total de mensagens processadas pelo IA Worker',
+    ['status']
+)
+
+
+class MetricsHandler(BaseHTTPRequestHandler):
+    """Handler HTTP para expor métricas Prometheus"""
+    
+    def do_GET(self):
+        if self.path == '/metrics':
+            self.send_response(200)
+            self.send_header('Content-Type', CONTENT_TYPE_LATEST)
+            self.end_headers()
+            self.wfile.write(generate_latest())
+        else:
+            self.send_response(404)
+            self.end_headers()
+    
+    def log_message(self, format, *args):
+        # Suprime logs do servidor HTTP
+        pass
+
+
+def start_metrics_server(port=8000):
+    """Inicia servidor HTTP para expor métricas Prometheus"""
+    try:
+        server = HTTPServer(('0.0.0.0', port), MetricsHandler)
+        print(f" [METRICS] Servidor de métricas iniciado na porta {port}")
+        server.serve_forever()
+    except OSError as e:
+        print(f" [METRICS ERROR] Não foi possível iniciar servidor na porta {port}: {e}")
+        # Tenta porta alternativa
+        alt_port = 8001
+        try:
+            server = HTTPServer(('0.0.0.0', alt_port), MetricsHandler)
+            print(f" [METRICS] Servidor de métricas iniciado na porta alternativa {alt_port}")
+            server.serve_forever()
+        except Exception as e2:
+            print(f" [METRICS ERROR] Falha ao iniciar servidor de métricas: {e2}")
 
 # Simulação da API Externa de IA (OS2)
 def call_external_ai_api(prompt: str):
@@ -95,11 +146,16 @@ def callback(ch, method, properties, body):
         # 3. Publicar a Resposta na Fila q.ia_response
         publish_response(user_id, bot_response)
         
-        # 4. Confirmação (ACK)
+        # 4. Registra métrica de throughput (mensagem processada com sucesso)
+        messages_processed_total.labels(status='success').inc()
+        
+        # 5. Confirmação (ACK)
         ch.basic_ack(delivery_tag=method.delivery_tag) 
 
     except Exception as e:
         print(f" [!!!] Erro no processamento do Worker: {e}. Rejeitando mensagem.")
+        # Registra métrica de falha
+        messages_processed_total.labels(status='error').inc()
         # Rejeita a mensagem para que ela volte à fila ou vá para uma DLQ
         ch.basic_nack(delivery_tag=method.delivery_tag) 
 
@@ -137,4 +193,10 @@ def start_consuming():
         print('Worker desligado.')
 
 if __name__ == '__main__':
+    # Inicia servidor de métricas em thread separada
+    metrics_port = int(os.getenv("METRICS_PORT", "8000"))
+    metrics_thread = Thread(target=start_metrics_server, args=(metrics_port,), daemon=True)
+    metrics_thread.start()
+    
+    # Inicia consumo de mensagens
     start_consuming()

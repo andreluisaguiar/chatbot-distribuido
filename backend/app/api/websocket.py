@@ -6,7 +6,7 @@ class ConnectionManager:
         self.active_connections: dict[str, WebSocket] = {}
 
     async def connect(self, user_id: str, websocket: WebSocket):
-        await websocket.accept()
+        # WebSocket já foi aceito no endpoint, apenas registra a conexão
         self.active_connections[user_id] = websocket
         print(f" [WS] Usuário {user_id} conectado.")
 

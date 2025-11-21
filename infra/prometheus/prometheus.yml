@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'api_gateway'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['api_gateway:8000']
+        labels:
+          service: 'api_gateway'
+  
+  - job_name: 'ia_worker'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['ia_worker:8000']
+        labels:
+          service: 'ia_worker'
+

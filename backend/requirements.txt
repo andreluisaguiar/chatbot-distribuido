@@ -1,5 +1,6 @@
 fastapi                  # Framework web assíncrono para a API
-uvicorn                  # Servidor ASGI para rodar o FastAPI
+uvicorn[standard]        # Servidor ASGI para rodar o FastAPI (com suporte WebSocket)
+websockets               # Biblioteca WebSocket para uvicorn
 asyncpg                  # Driver assíncrono para PostgreSQL
 sqlalchemy               # ORM (Object-Relational Mapper)
 pika                     # Cliente Python para AMQP (RabbitMQ)
