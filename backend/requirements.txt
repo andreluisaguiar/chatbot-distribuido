@@ -13,3 +13,4 @@ sqlalchemy               # ORM (Object-Relational Mapper)
 aiosqlite           # Driver assíncrono para SQLite
 httpx                    # Cliente HTTP assíncrono moderno 
 requests                 # Cliente HTTP síncrono (Usado na simulação do Worker)
+python-dotenv            # Carregamento automático de variáveis definidas no .env

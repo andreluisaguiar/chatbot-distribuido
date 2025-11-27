@@ -159,6 +159,7 @@ O frontend será iniciado e o navegador abrirá automaticamente em: **http://loc
 | **API Gateway** | http://localhost:8000 | - |
 | **API Health** | http://localhost:8000/health | - |
 | **API Métricas** | http://localhost:8000/metrics | - |
+| **Criar Usuário (POST)** | http://localhost:8000/api/v1/users | body: `{"username":"joao"}` |
 | **Prometheus** | http://localhost:9090 | - |
 | **Grafana** | http://localhost:3000 | `admin` / `admin` |
 | **RabbitMQ Management** | http://localhost:15672 | Ver `.env` |
@@ -178,6 +179,9 @@ O frontend será iniciado e o navegador abrirá automaticamente em: **http://loc
 2. Verifique o status de conexão no canto superior direito:
    - **"Conectado"** (verde) = tudo funcionando
    - **"Desconectado"** (vermelho) = verifique se o backend está rodando
+3. No topo da página, informe um **nome de usuário** e clique em **"Criar usuário"**
+   - O frontend chama `POST /api/v1/users`
+   - O `session_id` retornado é usado automaticamente na conexão WebSocket
 
 ### 5.2 Enviar Mensagens
 
