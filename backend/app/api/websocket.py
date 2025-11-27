@@ -17,6 +17,15 @@ class ConnectionManager:
 
     async def send_personal_message(self, message: str, user_id: str):
         if user_id in self.active_connections:
-            await self.active_connections[user_id].send_text(message)
+            try:
+                await self.active_connections[user_id].send_text(message)
+                print(f" [WS] Mensagem enviada para {user_id}: {message[:50]}...")
+            except Exception as e:
+                print(f" [WS ERROR] Erro ao enviar mensagem para {user_id}: {e}")
+                # Remove conexão inválida
+                if user_id in self.active_connections:
+                    del self.active_connections[user_id]
+        else:
+            print(f" [WS WARNING] Usuário {user_id} não está conectado. Conexões ativas: {list(self.active_connections.keys())}")
 
 manager = ConnectionManager()

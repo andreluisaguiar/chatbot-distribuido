@@ -14,3 +14,4 @@ redis_data/
 grafana_data/
 *.log
 logs/
+MIGRACAO_BANCO.md

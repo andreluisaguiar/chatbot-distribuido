@@ -24,18 +24,36 @@ def callback(ch, method, properties, body):
         bot_content = response_data.get("bot_content")
         
         print(f" [<-] Resposta recebida da fila para o usuário: {user_id}")
+        print(f" [<-] Conteúdo da resposta: {bot_content[:100]}...")
 
         # 1. Enviar a resposta via WebSocket
-        # Como o callback do pika é síncrono, usamos asyncio.run() para executar
-        # a função assíncrona de envio do WebSocket.
+        # Como o callback do pika é síncrono, precisamos criar um novo event loop
         if user_id:
-            # Envia a mensagem do Bot de volta para o cliente específico
-            asyncio.run(
-                manager.send_personal_message(
-                    json.dumps({"sender": "BOT", "content": bot_content}), 
-                    user_id
+            try:
+                # Cria um novo event loop para esta thread
+                # Isso é necessário porque o callback do pika roda em uma thread separada
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                # Executa a função assíncrona
+                loop.run_until_complete(
+                    manager.send_personal_message(
+                        json.dumps({"sender": "BOT", "content": bot_content}), 
+                        user_id
+                    )
                 )
-            )
+                loop.close()
+                print(f" [->] Resposta enviada via WebSocket para {user_id}")
+            except Exception as ws_error:
+                print(f" [!!!] Erro ao enviar via WebSocket: {ws_error}")
+                import traceback
+                traceback.print_exc()
+                # Fecha o loop mesmo em caso de erro
+                try:
+                    if 'loop' in locals():
+                        loop.close()
+                except:
+                    pass
 
         # 2. Confirmação (ACK)
         # Informa ao RabbitMQ que a mensagem foi entregue com sucesso.
@@ -43,6 +61,8 @@ def callback(ch, method, properties, body):
 
     except Exception as e:
         print(f" [!!!] Erro no processamento da resposta (WS ou JSON): {e}")
+        import traceback
+        traceback.print_exc()
         ch.basic_nack(delivery_tag=method.delivery_tag) # NACK para re-enfileirar, se o erro for recuperável
 
 def start_response_consumer_thread():

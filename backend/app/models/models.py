@@ -11,8 +11,16 @@ class User(Base):
     __tablename__ = 'users'
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    username = Column(String(50), unique=True, nullable=False)
+    nome = Column(String(100), nullable=False)
+    sobrenome = Column(String(100), nullable=False)
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    senha_hash = Column(String(255), nullable=False)  # Hash da senha (bcrypt)
+    username = Column(String(50), unique=True, nullable=True)  # Opcional, pode ser gerado
+    is_active = Column(String(10), default='ACTIVE')  # ACTIVE ou INACTIVE
+    role = Column(String(20), default='USER')  # USER, ADMIN, etc.
+    last_login = Column(TIMESTAMP(timezone=True), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), default=func.now(), onupdate=func.now())
 
 class ChatSession(Base):
     __tablename__ = 'chat_sessions'
