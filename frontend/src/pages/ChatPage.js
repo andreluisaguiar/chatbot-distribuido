@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { WebSocketService } from '../services/websocketService';
-import { createUser } from '../services/userService';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
 import './ChatPage.css';
 
-const ChatPage = () => {
+const ChatPage = ({ userInfo: propUserInfo, onLogout }) => {
   const [messages, setMessages] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
-  const [userInfo, setUserInfo] = useState(null);
-  const [usernameInput, setUsernameInput] = useState('');
-  const [isCreatingUser, setIsCreatingUser] = useState(false);
-  const [creationError, setCreationError] = useState('');
+  const [userInfo] = useState(() => {
+    // Usa userInfo das props ou do localStorage
+    if (propUserInfo) return propUserInfo;
+    const stored = localStorage.getItem('user');
+    return stored ? JSON.parse(stored) : null;
+  });
   const wsServiceRef = useRef(null);
   const messagesEndRef = useRef(null);
 
@@ -28,15 +29,18 @@ const ChatPage = () => {
   };
 
   useEffect(() => {
-    addSystemMessage('Crie um usuário para iniciar a conversa.');
-  }, [addSystemMessage]);
+    if (userInfo) {
+      addSystemMessage(`Bem-vindo, ${userInfo.nome} ${userInfo.sobrenome}!`);
+    }
+  }, [addSystemMessage, userInfo]);
 
   useEffect(() => {
-    if (!userInfo?.sessionId) return;
+    const sessionId = localStorage.getItem('sessionId') || userInfo?.session_id;
+    if (!sessionId) return;
 
     const baseUrl = process.env.REACT_APP_WS_URL || 'ws://localhost:8000/ws_chat';
     const separator = baseUrl.includes('?') ? '&' : '?';
-    const wsUrl = `${baseUrl}${separator}id=${userInfo.sessionId}`;
+    const wsUrl = `${baseUrl}${separator}id=${sessionId}`;
 
     const wsService = new WebSocketService(
       wsUrl,
@@ -44,14 +48,19 @@ const ChatPage = () => {
         onOpen: () => {
           console.log('WebSocket conectado');
           setIsConnected(true);
-          addSystemMessage(`Conectado ao servidor como ${userInfo.username}`);
+          const nome = userInfo?.nome || userInfo?.username || 'Usuário';
+          addSystemMessage(`Conectado ao servidor como ${nome}`);
         },
         onMessage: (data) => {
           try {
             const message = JSON.parse(data);
-            addMessage(message.sender, message.content);
+            console.log('Mensagem recebida do WebSocket:', message);
+            // Normaliza o sender para garantir compatibilidade
+            const sender = message.sender === 'BOT' ? 'BOT' : message.sender;
+            addMessage(sender, message.content);
           } catch (error) {
             console.error('Erro ao parsear mensagem:', error);
+            console.error('Dados recebidos:', data);
           }
         },
         onError: (error) => {
@@ -73,31 +82,11 @@ const ChatPage = () => {
         wsServiceRef.current.disconnect();
       }
     };
-  }, [userInfo?.sessionId, userInfo?.username, addMessage, addSystemMessage]);
+  }, [userInfo, addMessage, addSystemMessage]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  const handleCreateUser = async (event) => {
-    event.preventDefault();
-    if (!usernameInput.trim()) {
-      setCreationError('Informe um nome de usuário.');
-      return;
-    }
-
-    setIsCreatingUser(true);
-    setCreationError('');
-    try {
-      const data = await createUser(usernameInput.trim());
-      setUserInfo(data);
-      addSystemMessage(`Usuário ${data.username} criado com sucesso. Sessão pronta!`);
-    } catch (error) {
-      setCreationError(error.message);
-    } finally {
-      setIsCreatingUser(false);
-    }
-  };
 
   const handleSendMessage = (message) => {
     if (wsServiceRef.current && isConnected && message.trim()) {
@@ -110,9 +99,11 @@ const ChatPage = () => {
     if (!userInfo) return null;
     return (
       <div className="user-details">
-        <div><strong>Usuário:</strong> {userInfo.username}</div>
-        <div><strong>User ID:</strong> {userInfo.userId}</div>
-        <div className="session-id"><strong>Session ID:</strong> {userInfo.sessionId}</div>
+        <div><strong>Usuário:</strong> {userInfo.nome} {userInfo.sobrenome}</div>
+        <div><strong>Email:</strong> {userInfo.email}</div>
+        {onLogout && (
+          <button onClick={onLogout} className="logout-button">Sair</button>
+        )}
       </div>
     );
   };
@@ -129,19 +120,6 @@ const ChatPage = () => {
         </div>
 
         <div className="user-setup">
-          <form className="user-form" onSubmit={handleCreateUser}>
-            <input
-              type="text"
-              value={usernameInput}
-              onChange={(e) => setUsernameInput(e.target.value)}
-              placeholder="Nome do usuário"
-              className="user-input"
-            />
-            <button type="submit" disabled={isCreatingUser}>
-              {isCreatingUser ? 'Criando...' : 'Criar usuário'}
-            </button>
-          </form>
-          {creationError && <div className="error-message">{creationError}</div>}
           {renderUserInfo()}
         </div>
 

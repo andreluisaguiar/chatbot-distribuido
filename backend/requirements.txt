@@ -14,3 +14,7 @@ aiosqlite           # Driver assíncrono para SQLite
 httpx                    # Cliente HTTP assíncrono moderno 
 requests                 # Cliente HTTP síncrono (Usado na simulação do Worker)
 python-dotenv            # Carregamento automático de variáveis definidas no .env
+bcrypt                   # Biblioteca para hash de senhas
+python-jose[cryptography] # Biblioteca para JWT tokens
+passlib[bcrypt]          # Biblioteca adicional para hash de senhas
+email-validator          # Validação de email para Pydantic EmailStr

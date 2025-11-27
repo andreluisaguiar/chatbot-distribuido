@@ -43,11 +43,7 @@ async def get_db_session() -> AsyncSession:
         yield session
 
 def normalize_session_uuid(session_id: str) -> uuid.UUID:
-    """
-    Converte qualquer identificador de sessão em um UUID.
-    - Se já for um UUID válido, retorna o próprio.
-    - Caso contrário, gera um UUID determinístico usando uuid5.
-    """
+
     try:
         return uuid.UUID(session_id)
     except ValueError:
@@ -55,12 +51,23 @@ def normalize_session_uuid(session_id: str) -> uuid.UUID:
 
 
 async def ensure_user_and_session(session: AsyncSession, session_uuid: uuid.UUID):
-    """
-    Garante que exista um usuário e uma sessão no banco para o UUID informado.
-    """
+
     user = await session.get(User, session_uuid)
     if not user:
-        session.add(User(id=session_uuid, username=f"user_{str(session_uuid)[:8]}"))
+        # Cria usuário mínimo para compatibilidade (não recomendado para produção)
+        # Em produção, o usuário deve ser criado via registro/login
+        email = f"user_{str(session_uuid)[:8]}@temp.local"
+        username = f"user_{str(session_uuid)[:8]}"
+        from .auth_service import get_password_hash
+        session.add(User(
+            id=session_uuid,
+            nome="Usuário",
+            sobrenome="Temporário",
+            email=email,
+            senha_hash=get_password_hash("temp123"),
+            username=username,
+            is_active="ACTIVE"
+        ))
         await session.flush()  # garante que o usuário existe antes da sessão
 
     chat_session = await session.get(ChatSession, session_uuid)
