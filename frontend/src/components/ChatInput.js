@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import './ChatInput.css';
 
-const ChatInput = ({ onSendMessage, disabled }) => {
+const ChatInput = ({
+  onSendMessage,
+  disabled,
+  placeholder = "Digite sua mensagem...",
+  disabledPlaceholder = "Conectando..."
+}) => {
   const [message, setMessage] = useState('');
 
   const handleSubmit = (e) => {
@@ -27,7 +32,7 @@ const ChatInput = ({ onSendMessage, disabled }) => {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyPress={handleKeyPress}
-          placeholder={disabled ? "Conectando..." : "Digite sua mensagem..."}
+          placeholder={disabled ? disabledPlaceholder : placeholder}
           disabled={disabled}
           className="chat-input"
         />

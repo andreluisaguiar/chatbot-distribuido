@@ -94,7 +94,14 @@ async def test_save_message_invalid_session_id(async_session_test: AsyncSession)
     # Ação (usando um UUID que não existe no DB)
     invalid_session_id = str(uuid.uuid4())
     
-    # O save_message deve lidar com a exceção (rollback) e retornar False
+    # O save_message deve criar automaticamente usuário/sessão e salvar a mensagem
     success = await save_message(async_session_test, invalid_session_id, "BOT", "Resposta falsa.")
+    assert success is True
     
-    assert success is False
+    stmt = select(Message).where(Message.session_id == uuid.UUID(invalid_session_id))
+    result = await async_session_test.execute(stmt)
+    saved_message = result.scalars().first()
+    
+    assert saved_message is not None
+    assert saved_message.sender == "BOT"
+    assert saved_message.content == "Resposta falsa."

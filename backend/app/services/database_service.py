@@ -1,11 +1,15 @@
 # backend/app/services/database_service.py
 
 import os
+from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession # type: ignore
 from sqlalchemy.orm import sessionmaker # type: ignore
 from ..models.models import Base, User, ChatSession, Message
 import uuid
 from sqlalchemy.exc import IntegrityError # type: ignore
+
+# Carrega variáveis de ambiente do arquivo .env
+load_dotenv()
 
 # Lendo configurações do .env
 POSTGRES_USER = os.getenv("POSTGRES_USER")
@@ -38,10 +42,42 @@ async def get_db_session() -> AsyncSession:
     async with AsyncSessionLocal() as session:
         yield session
 
+def normalize_session_uuid(session_id: str) -> uuid.UUID:
+    """
+    Converte qualquer identificador de sessão em um UUID.
+    - Se já for um UUID válido, retorna o próprio.
+    - Caso contrário, gera um UUID determinístico usando uuid5.
+    """
+    try:
+        return uuid.UUID(session_id)
+    except ValueError:
+        return uuid.uuid5(uuid.NAMESPACE_DNS, session_id)
+
+
+async def ensure_user_and_session(session: AsyncSession, session_uuid: uuid.UUID):
+    """
+    Garante que exista um usuário e uma sessão no banco para o UUID informado.
+    """
+    user = await session.get(User, session_uuid)
+    if not user:
+        session.add(User(id=session_uuid, username=f"user_{str(session_uuid)[:8]}"))
+        await session.flush()  # garante que o usuário existe antes da sessão
+
+    chat_session = await session.get(ChatSession, session_uuid)
+    if not chat_session:
+        session.add(ChatSession(id=session_uuid, user_id=session_uuid, status="ACTIVE"))
+        await session.flush()
+
+
 async def save_message(session: AsyncSession, session_id: str, sender: str, content: str):
     try:
+        session_uuid = normalize_session_uuid(session_id)
+
+        # garante usuário e sessão antes de inserir a mensagem
+        await ensure_user_and_session(session, session_uuid)
+
         new_message = Message(
-            session_id=uuid.UUID(session_id),
+            session_id=session_uuid,
             sender=sender,
             content=content
         )

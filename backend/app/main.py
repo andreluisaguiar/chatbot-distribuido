@@ -5,13 +5,14 @@ import uuid
 from contextlib import asynccontextmanager
 
 # Importar Rotas e Serviços
-from .api import chat
+from .api import chat, users
 from .consumers.response_consumer import start_response_consumer
 from .services.database_service import init_db, AsyncSessionLocal, save_message
 from .services.rabbitmq_service import publish_message
 from .api.websocket import manager # Importa apenas o gerenciador de conexão (manager)
 from .services.metrics_service import get_metrics, websocket_message_duration, websocket_messages_total
 from prometheus_client import CONTENT_TYPE_LATEST # type: ignore
+from fastapi.middleware.cors import CORSMiddleware # type: ignore
 
 
 @asynccontextmanager
@@ -39,8 +40,18 @@ app = FastAPI(
 # Nota: Middleware de métricas removido temporariamente para evitar conflito com WebSocket
 # As métricas WebSocket são coletadas diretamente no endpoint
 
+# CORS para permitir front-end (React) se comunicar com a API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Registra rotas REST com prefixo
 app.include_router(chat.router, prefix="/api/v1", tags=["Chat"])
+app.include_router(users.router, prefix="/api/v1", tags=["Users"])
 
 # Rota de health check
 @app.get("/health")
