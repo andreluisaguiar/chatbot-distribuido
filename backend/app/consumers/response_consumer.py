@@ -67,30 +67,52 @@ def callback(ch, method, properties, body):
 
 def start_response_consumer_thread():
     """Inicia a conexão e o consumo do RabbitMQ em uma thread separada."""
-    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
-    parameters = pika.ConnectionParameters(
-        host=RABBITMQ_HOST,
-        credentials=credentials
-    )
+    import time
+    
+    max_retries = 10
+    retry_delay = 5
+    
+    for attempt in range(max_retries):
+        try:
+            credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
+            parameters = pika.ConnectionParameters(
+                host=RABBITMQ_HOST,
+                credentials=credentials,
+                connection_attempts=3,
+                retry_delay=2
+            )
 
-    try:
-        connection = pika.BlockingConnection(parameters)
-        channel = connection.channel()
+            connection = pika.BlockingConnection(parameters)
+            channel = connection.channel()
 
-        # Garante que a fila e a exchange de RESPOSTA existam (Resiliência/OS5)
-        channel.exchange_declare(exchange=RESPONSE_EXCHANGE_NAME, exchange_type='direct', durable=True)
-        channel.queue_declare(queue=RESPONSE_QUEUE_NAME, durable=True)
-        channel.queue_bind(exchange=RESPONSE_EXCHANGE_NAME, queue=RESPONSE_QUEUE_NAME, routing_key=RESPONSE_QUEUE_NAME)
-        
-        print(f' [*] Consumidor de Respostas WS iniciado. Escutando: {RESPONSE_QUEUE_NAME}')
-        
-        channel.basic_consume(queue=RESPONSE_QUEUE_NAME, on_message_callback=callback)
-        channel.start_consuming()
+            # Garante que a fila e a exchange de RESPOSTA existam (Resiliência/OS5)
+            channel.exchange_declare(exchange=RESPONSE_EXCHANGE_NAME, exchange_type='direct', durable=True)
+            channel.queue_declare(queue=RESPONSE_QUEUE_NAME, durable=True)
+            channel.queue_bind(exchange=RESPONSE_EXCHANGE_NAME, queue=RESPONSE_QUEUE_NAME, routing_key=RESPONSE_QUEUE_NAME)
+            
+            print(f' [*] Consumidor de Respostas WS iniciado. Escutando: {RESPONSE_QUEUE_NAME}')
+            
+            channel.basic_consume(queue=RESPONSE_QUEUE_NAME, on_message_callback=callback)
+            channel.start_consuming()
 
-    except pika.exceptions.AMQPConnectionError as e:
-        print(f" [!!!] Erro de conexão com RabbitMQ (Consumer de Resposta). Não foi possível iniciar.")
-    except Exception as e:
-        print(f" [!!!] Erro fatal no Consumer de Resposta: {e}")
+        except pika.exceptions.AMQPConnectionError as e:
+            if attempt < max_retries - 1:
+                print(f" [!!!] Erro de conexão com RabbitMQ (Consumer de Resposta). Tentativa {attempt + 1}/{max_retries}. Tentando novamente em {retry_delay}s...")
+                time.sleep(retry_delay)
+            else:
+                print(f" [!!!] Erro de conexão com RabbitMQ (Consumer de Resposta). Todas as tentativas falharam.")
+                import traceback
+                traceback.print_exc()
+        except KeyboardInterrupt:
+            print(' [*] Consumidor de Respostas desligado.')
+            break
+        except Exception as e:
+            print(f" [!!!] Erro fatal no Consumer de Resposta: {e}")
+            import traceback
+            traceback.print_exc()
+            if attempt < max_retries - 1:
+                print(f" [!!!] Tentando reconectar em {retry_delay}s...")
+                time.sleep(retry_delay)
 
 
 def start_response_consumer():
