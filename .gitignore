@@ -15,3 +15,4 @@ grafana_data/
 *.log
 logs/
 MIGRACAO_BANCO.md
+COMANDOS.md
