@@ -1,0 +1,391 @@
+{
+  "dashboard": {
+    "title": "Testes de Carga - Múltiplos Usuários",
+    "tags": ["chatbot", "load-test", "performance"],
+    "timezone": "browser",
+    "refresh": "5s",
+    "schemaVersion": 16,
+    "version": 1,
+    "panels": [
+      {
+        "id": 1,
+        "title": "Throughput de Mensagens (Mensagens/segundo)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(websocket_messages_total{action=\"process_message\"}[1m])",
+            "legendFormat": "Mensagens WebSocket/s",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(ia_worker_messages_processed_total[1m])",
+            "legendFormat": "Mensagens Processadas pelo Worker/s",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Mensagens/s", "min": 0},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"},
+        "legend": {"show": true, "values": true, "current": true}
+      },
+      {
+        "id": 2,
+        "title": "Total de Mensagens Processadas",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(increase(websocket_messages_total{action=\"process_message\"}[5m]))",
+            "legendFormat": "Total",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "colorMode": "value",
+          "justifyMode": "auto"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Mensagens por Worker",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "sum by (instance) (increase(ia_worker_messages_processed_total{status=\"success\"}[5m]))",
+            "legendFormat": "{{instance}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "colorMode": "value",
+          "justifyMode": "auto"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Latência WebSocket (p50, p95, p99)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(websocket_message_duration_seconds_bucket{action=\"process_message\"}[1m]))",
+            "legendFormat": "p50 (mediana)",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(websocket_message_duration_seconds_bucket{action=\"process_message\"}[1m]))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(websocket_message_duration_seconds_bucket{action=\"process_message\"}[1m]))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Latência (segundos)", "min": 0},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"},
+        "legend": {"show": true, "values": true, "current": true},
+        "thresholds": [
+          {
+            "value": 5,
+            "colorMode": "critical",
+            "op": "gt"
+          },
+          {
+            "value": 3,
+            "colorMode": "warning",
+            "op": "gt"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Latência Média WebSocket",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(websocket_message_duration_seconds_sum{action=\"process_message\"}[5m]) / rate(websocket_message_duration_seconds_count{action=\"process_message\"}[5m])",
+            "legendFormat": "Média",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value",
+          "justifyMode": "auto"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 3, "color": "yellow"},
+                {"value": 5, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Latência p95 WebSocket",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(websocket_message_duration_seconds_bucket{action=\"process_message\"}[5m]))",
+            "legendFormat": "p95",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value",
+          "justifyMode": "auto"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 3, "color": "yellow"},
+                {"value": 5, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Taxa de Erros",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "rate(ia_worker_messages_processed_total{status=\"error\"}[1m])",
+            "legendFormat": "Erros/s",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(ia_worker_messages_processed_total{status=\"success\"}[1m])",
+            "legendFormat": "Sucessos/s",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Taxa", "min": 0},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"},
+        "legend": {"show": true, "values": true, "current": true}
+      },
+      {
+        "id": 8,
+        "title": "Taxa de Sucesso vs Erro",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+        "targets": [
+          {
+            "expr": "sum by (status) (increase(ia_worker_messages_processed_total[5m]))",
+            "legendFormat": "{{status}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "right"
+          },
+          "pieType": "pie"
+        }
+      },
+      {
+        "id": 9,
+        "title": "Requisições HTTP (Registro/Login)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{endpoint=~\"/api/v1/users/.*\"}[1m])",
+            "legendFormat": "{{method}} {{endpoint}} ({{status_code}})",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Requisições/s", "min": 0},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"},
+        "legend": {"show": true, "values": true, "current": true}
+      },
+      {
+        "id": 10,
+        "title": "Latência HTTP (Registro/Login)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{endpoint=~\"/api/v1/users/.*\"}[1m]))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{endpoint=~\"/api/v1/users/.*\"}[1m]))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{endpoint=~\"/api/v1/users/.*\"}[1m]))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Latência (segundos)", "min": 0},
+          {"format": "short"}
+        ],
+        "xaxis": {"mode": "time"},
+        "legend": {"show": true, "values": true, "current": true}
+      },
+      {
+        "id": 11,
+        "title": "Distribuição de Carga por Worker",
+        "type": "bargauge",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+        "targets": [
+          {
+            "expr": "sum by (instance) (rate(ia_worker_messages_processed_total{status=\"success\"}[5m]))",
+            "legendFormat": "{{instance}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "orientation": "horizontal",
+          "displayMode": "gradient",
+          "showUnfilled": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops",
+            "decimals": 2,
+            "min": 0
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "Total de Mensagens por Status",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+        "targets": [
+          {
+            "expr": "sum by (status) (increase(ia_worker_messages_processed_total[5m]))",
+            "format": "table",
+            "instant": true,
+            "legendFormat": "{{status}}",
+            "refId": "A"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true
+              },
+              "indexByName": {
+                "status": 0,
+                "Value": 1
+              },
+              "renameByName": {
+                "status": "Status",
+                "Value": "Total"
+              }
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "align": "auto",
+              "displayMode": "color-background"
+            },
+            "mappings": [
+              {
+                "options": {
+                  "success": {
+                    "color": "green",
+                    "index": 0
+                  },
+                  "error": {
+                    "color": "red",
+                    "index": 1
+                  }
+                },
+                "type": "value"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": 13,
+        "title": "Histograma de Latência WebSocket",
+        "type": "heatmap",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 40},
+        "targets": [
+          {
+            "expr": "sum(rate(websocket_message_duration_seconds_bucket{action=\"process_message\"}[1m])) by (le)",
+            "format": "heatmap",
+            "legendFormat": "{{le}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "calculate": false,
+          "yAxis": {
+            "unit": "s",
+            "reverse": false
+          }
+        }
+      }
+    ],
+    "time": {
+      "from": "now-15m",
+      "to": "now"
+    },
+    "timepicker": {
+      "refresh_intervals": ["5s", "10s", "30s", "1m", "5m", "15m", "30m", "1h", "2h", "1d"]
+    }
+  }
+}
+
