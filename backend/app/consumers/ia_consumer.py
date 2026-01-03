@@ -58,12 +58,13 @@ IS_DEEPSEEK = AI_MODEL.startswith("deepseek") if AI_MODEL else False
 IS_GROQ = AI_MODEL.startswith("llama") or AI_MODEL.startswith("mixtral") or AI_MODEL.startswith("gemma") if AI_MODEL else False
 
 # Prompt de sistema focado em apoio a estudos
-SYSTEM_PROMPT = """Você é um assistente educacional especializado exclusivamente em apoio a estudos e conteúdos acadêmicos. Seu objetivo é ajudar estudantes de forma didática e pedagógica, mantendo-se estritamente dentro de temas de aprendizado.
+SYSTEM_PROMPT = """Você é um assistente educacional especializado EXCLUSIVAMENTE em apoio a estudos e conteúdos acadêmicos. Seu objetivo é ajudar estudantes de forma didática e pedagógica, mantendo-se ESTRITAMENTE dentro de temas de aprendizado.
 
-REGRAS DE CONDUTA E ESCOPO:
-1. Responda apenas perguntas relacionadas a estudos, disciplinas acadêmicas, métodos de organização e carreira estudantil.
-2. Se o usuário solicitar conteúdos não educativos (como receitas culinárias, letras de músicas casuais, fofocas ou entretenimento puro), recuse educadamente, explicando que seu propósito é focado no apoio acadêmico.
-3. Não fuja do tema educativo sob nenhuma circunstância.
+REGRAS ABSOLUTAS DE CONDUTA E ESCOPO:
+1. Você DEVE responder APENAS perguntas relacionadas a estudos, disciplinas acadêmicas, métodos de organização e carreira estudantil.
+2. Você NUNCA deve fornecer receitas culinárias, letras de músicas, fofocas, entretenimento ou qualquer conteúdo não educacional.
+3. Se o usuário solicitar qualquer conteúdo não educativo, você DEVE recusar educadamente mas FIRMEMENTE, explicando que seu propósito é EXCLUSIVAMENTE focado no apoio acadêmico.
+4. NÃO fuja do tema educativo sob NENHUMA circunstância. Mesmo que o usuário insista, mantenha-se focado apenas em estudos.
 
 REGRAS DE FORMATAÇÃO E ESTILO:
 1. Use uma linguagem natural e humana. Evite frases robóticas ou excessivamente formais.
@@ -76,6 +77,8 @@ FUNÇÕES PRINCIPAIS:
 - Resolver exercícios detalhando o raciocínio.
 - Explicar conceitos complexos com termos simples e exemplos práticos.
 - Sugerir técnicas de estudo.
+
+IMPORTANTE: Se perguntarem sobre receitas, culinária, comida, entretenimento ou qualquer tema não educacional, responda APENAS: "Desculpe, mas sou um assistente educacional focado exclusivamente em apoio a estudos. Posso ajudá-lo com questões acadêmicas, explicações de matérias, resolução de exercícios ou técnicas de estudo. Como posso ajudá-lo com seus estudos?"
 
 Sempre responda de forma encorajadora, focada no progresso do aluno, agindo como um tutor humano e atencioso."""
 
@@ -122,6 +125,35 @@ def start_metrics_server(port=8000):
         except Exception as e2:
             print(f" [METRICS ERROR] Falha ao iniciar servidor de métricas: {e2}")
 
+# Palavras-chave que indicam conteúdo não educativo
+NON_EDUCATIONAL_KEYWORDS = [
+    'receita', 'receitas', 'bolo', 'bolos', 'comida', 'culinária', 'culinaria', 
+    'cozinhar', 'ingredientes', 'forno', 'fogão', 'prato', 'pratos',
+    'música', 'musica', 'letra', 'letras', 'cantar', 'cantor', 'cantora',
+    'fofoca', 'fofocas', 'celebridade', 'celebridades', 'famoso', 'famosos',
+    'filme', 'filmes', 'série', 'series', 'novela', 'novelas', 'entretenimento',
+    'jogo', 'jogos', 'video game', 'videogame', 'futebol', 'esporte', 'esportes'
+]
+
+def is_educational_content(user_prompt: str) -> bool:
+    """
+    Verifica se a pergunta do usuário é relacionada a estudos.
+    
+    Args:
+        user_prompt: Mensagem do usuário
+        
+    Returns:
+        True se for conteúdo educativo, False caso contrário
+    """
+    prompt_lower = user_prompt.lower()
+    
+    # Verifica se contém palavras-chave não educativas
+    for keyword in NON_EDUCATIONAL_KEYWORDS:
+        if keyword in prompt_lower:
+            return False
+    
+    return True
+
 # Chamada real à API Externa de IA
 def call_external_ai_api(user_prompt: str):
     """
@@ -133,6 +165,16 @@ def call_external_ai_api(user_prompt: str):
     Returns:
         Resposta gerada pela IA ou mensagem de erro
     """
+    # Verificação prévia: recusa conteúdo não educativo antes de chamar a API
+    if not is_educational_content(user_prompt):
+        refusal_message = (
+            "Desculpe, mas sou um assistente educacional focado exclusivamente em apoio a estudos. "
+            "Posso ajudá-lo com questões acadêmicas, explicações de matérias, resolução de exercícios ou técnicas de estudo. "
+            "Como posso ajudá-lo com seus estudos?"
+        )
+        print(f" [INFO] Pergunta não educativa detectada e recusada: '{user_prompt[:50]}...'")
+        return refusal_message
+    
     if not AI_API_KEY:
         error_msg = "Erro: AI_API_KEY não configurada. Configure a variável de ambiente AI_API_KEY."
         print(f" [!!!] {error_msg}")
