@@ -15,6 +15,10 @@ Desenvolver um chatbot inteligente baseado em arquitetura distribuída, capaz de
 - Testes unitários passando
 - Sistema pronto para uso
 
+### 📋 Documentação Rápida
+- **[COMANDOS.md](./COMANDOS.md)** - Lista completa de comandos Docker, logs, verificações e troubleshooting
+- **[tests/README_LOAD_TEST.md](./tests/README_LOAD_TEST.md)** - Guia de testes de carga com K6
+
 ---
 
 ## 🏗️ 2. Arquitetura e Componentes Distribuídos
