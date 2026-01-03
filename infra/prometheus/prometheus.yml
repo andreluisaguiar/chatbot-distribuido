@@ -1,6 +1,6 @@
 global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
+  scrape_interval: 5s # Mudei para 5s para você ver os resultados mais rápido nos testes
+  evaluation_interval: 5s
 
 scrape_configs:
   - job_name: 'api_gateway'
@@ -10,10 +10,13 @@ scrape_configs:
         labels:
           service: 'api_gateway'
   
-  - job_name: 'ia_worker'
+  - job_name: 'ia_workers'
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['ia_worker:8000']
+      # AQUI ESTÁ A CORREÇÃO: Listamos cada réplica individualmente
+      - targets: 
+          - 'ia_worker_1:8000'
+          - 'ia_worker_2:8000'
+          - 'ia_worker_3:8000'
         labels:
-          service: 'ia_worker'
-
+          service: 'ia_worker_cluster'

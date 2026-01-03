@@ -128,7 +128,7 @@ services:
     networks:
       - chatbot-net
 
-  # 7. Visualização (Grafana) - OS4
+ # 7. Visualização (Grafana) - OS4
   grafana:
     image: grafana/grafana:latest
     container_name: grafana_dashboards
@@ -138,13 +138,17 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
+      # --- CORREÇÃO DO ERRO DE LOAD ---
+      GF_SERVER_ROOT_URL: http://localhost:3000
+      GF_SERVER_SERVE_FROM_SUB_PATH: false
+      # --------------------------------
     ports:
       - "3000:3000"
     depends_on:
       - prometheus
     networks:
       - chatbot-net
-
+      
 # Definição dos Volumes
 volumes:
   postgres_data:
