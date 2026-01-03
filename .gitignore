@@ -16,3 +16,5 @@ grafana_data/
 logs/
 MIGRACAO_BANCO.md
 COMANDOS.md
+DEPLOY.md
+DEPLOY_QUICKSTART.md
