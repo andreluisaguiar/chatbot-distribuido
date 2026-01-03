@@ -52,6 +52,10 @@ AI_API_URL = os.getenv("AI_API_URL")
 
 # Detecta se é API Gemini baseado no modelo
 IS_GEMINI = AI_MODEL.startswith("gemini") if AI_MODEL else False
+# Detecta se é API DeepSeek baseado no modelo
+IS_DEEPSEEK = AI_MODEL.startswith("deepseek") if AI_MODEL else False
+# Detecta se é API Groq baseado no modelo (llama, mixtral, etc)
+IS_GROQ = AI_MODEL.startswith("llama") or AI_MODEL.startswith("mixtral") or AI_MODEL.startswith("gemma") if AI_MODEL else False
 
 # Prompt de sistema focado em apoio a estudos
 SYSTEM_PROMPT = """Você é um assistente educacional especializado em apoio a estudos. Seu objetivo é ajudar estudantes de forma clara, didática e pedagógica.
@@ -124,15 +128,22 @@ def call_external_ai_api(user_prompt: str):
         print(f" [!!!] {error_msg}")
         return error_msg
     
-    print(f" [+] [WORKER] Processando IA ({'Gemini' if IS_GEMINI else 'OpenAI'}) para: '{user_prompt[:50]}...'")
-    print(f" [+] [WORKER] Modelo: {AI_MODEL}, IS_GEMINI: {IS_GEMINI}, API_KEY presente: {bool(AI_API_KEY)}")
+    api_type = "Groq" if IS_GROQ else ("DeepSeek" if IS_DEEPSEEK else ("Gemini" if IS_GEMINI else "OpenAI"))
+    print(f" [+] [WORKER] Processando IA ({api_type}) para: '{user_prompt[:50]}...'")
+    print(f" [+] [WORKER] Modelo: {AI_MODEL}, IS_GEMINI: {IS_GEMINI}, IS_DEEPSEEK: {IS_DEEPSEEK}, IS_GROQ: {IS_GROQ}, API_KEY presente: {bool(AI_API_KEY)}")
     
     try:
         # Determina URL e formato baseado no tipo de API
         if IS_GEMINI:
             # Tenta usar a biblioteca oficial do Google Gemini se disponível
             if HAS_GOOGLE_GENAI:
-                model_name = AI_MODEL if AI_MODEL else "gemini-3-pro-preview"
+                model_name = AI_MODEL if AI_MODEL else "gemini-2.0-flash"
+                
+                # Verifica se o modelo está disponível no plano gratuito
+                if model_name in ["gemini-3-pro-preview", "gemini-3-pro"]:
+                    print(f" [!!!] AVISO: Modelo '{model_name}' não está disponível no plano gratuito. Usando 'gemini-2.0-flash'.")
+                    model_name = "gemini-2.0-flash"
+                
                 max_retries_lib = 3
                 retry_delay_lib = 2
                 
@@ -163,8 +174,25 @@ def call_external_ai_api(user_prompt: str):
                         error_str = str(lib_error)
                         print(f" [!!!] Erro ao usar biblioteca oficial (tentativa {attempt_lib + 1}/{max_retries_lib}): {error_str}")
                         
-                        # Se for rate limit (429), tenta novamente
-                        if "429" in error_str or "rate limit" in error_str.lower() or "quota" in error_str.lower():
+                        # Se for rate limit (429) ou quota esgotada, verifica se é quota 0
+                        if "429" in error_str or "rate limit" in error_str.lower() or "quota" in error_str.lower() or "RESOURCE_EXHAUSTED" in error_str:
+                            # Verifica se é quota 0 (limit: 0) - significa que não tem acesso ao plano gratuito
+                            if "limit: 0" in error_str or '"limit": 0' in error_str:
+                                # Se for quota 0, retorna mensagem clara sobre o problema
+                                error_msg = (
+                                    "❌ Erro: Sua API key do Google Gemini não tem acesso ao plano gratuito ou a quota está zerada.\n\n"
+                                    "🔍 O que fazer:\n"
+                                    "1. Acesse https://aistudio.google.com/\n"
+                                    "2. Verifique se sua API key está ativa\n"
+                                    "3. Verifique o uso e quotas em: https://ai.dev/usage?tab=rate-limit\n"
+                                    "4. Certifique-se de que o projeto tem acesso ao plano gratuito habilitado\n"
+                                    "5. Se necessário, gere uma nova API key em um projeto diferente\n\n"
+                                    "💡 Nota: Alguns modelos podem ter quota 0 no plano gratuito. Tente usar uma API key de um projeto que tenha acesso ao plano gratuito habilitado."
+                                )
+                                print(f" [!!!] {error_msg}")
+                                return error_msg
+                            
+                            # Se for rate limit normal (não quota 0), tenta novamente
                             if attempt_lib < max_retries_lib - 1:
                                 wait_time = retry_delay_lib * (2 ** attempt_lib)
                                 print(f" [!!!] Rate limit detectado. Aguardando {wait_time}s antes de tentar novamente...")
@@ -172,6 +200,19 @@ def call_external_ai_api(user_prompt: str):
                                 continue
                             else:
                                 return "Erro: Rate limit da API de IA (muitas requisições). Por favor, aguarde alguns instantes e tente novamente."
+                        
+                        # Se for erro 404 (modelo não encontrado), retorna mensagem específica
+                        if "404" in error_str or "NOT_FOUND" in error_str or "is not found" in error_str.lower():
+                            error_msg = (
+                                f"❌ Erro: Modelo '{model_name}' não encontrado na API v1beta.\n\n"
+                                "🔍 O que fazer:\n"
+                                "1. Verifique se o nome do modelo está correto\n"
+                                "2. Tente usar um modelo disponível no plano gratuito\n"
+                                "3. Consulte a documentação: https://ai.google.dev/gemini-api/docs/models\n"
+                                f"4. Modelo atual configurado: {AI_MODEL}"
+                            )
+                            print(f" [!!!] {error_msg}")
+                            return error_msg
                         
                         # Se não for rate limit e for a última tentativa, faz fallback para HTTP
                         if attempt_lib == max_retries_lib - 1:
@@ -185,14 +226,16 @@ def call_external_ai_api(user_prompt: str):
             # Método HTTP direto (fallback ou quando biblioteca não está disponível)
             # API do Google Gemini via HTTP
             # URL: https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={API_KEY}
-            # Modelos válidos: gemini-3-pro-preview, gemini-2.0-flash, gemini-1.5-flash, gemini-1.5-pro
-            model_name = AI_MODEL if AI_MODEL else "gemini-3-pro-preview"
+            # Modelos válidos no plano gratuito: gemini-2.0-flash, gemini-1.5-flash
+            # NOTA: gemini-3-pro-preview NÃO está disponível no plano gratuito (quota: 0)
+            model_name = AI_MODEL if AI_MODEL else "gemini-2.0-flash"
             
-            # Lista de modelos inválidos ou deprecados - substitui por modelo válido
-            invalid_models = ["gemini-3", "gemini-pro", "gemini-pro-1.0"]
+            # Lista de modelos inválidos ou não disponíveis no plano gratuito - substitui por modelo válido
+            # gemini-3-pro-preview não está disponível no plano gratuito (quota: 0)
+            invalid_models = ["gemini-3", "gemini-pro", "gemini-pro-1.0", "gemini-3-pro-preview", "gemini-3-pro"]
             if model_name in invalid_models:
-                print(f" [!!!] AVISO: Modelo '{model_name}' não é válido. Usando 'gemini-3-pro-preview' como alternativa.")
-                model_name = "gemini-3-pro-preview"
+                print(f" [!!!] AVISO: Modelo '{model_name}' não está disponível no plano gratuito. Usando 'gemini-2.0-flash' como alternativa.")
+                model_name = "gemini-2.0-flash"
             
             api_url = AI_API_URL or f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent"
             print(f" [+] [WORKER] URL da API Gemini: {api_url.split('?')[0]} (modelo: {model_name})")
@@ -222,6 +265,42 @@ def call_external_ai_api(user_prompt: str):
             else:
                 api_url = f"{api_url}?key={AI_API_KEY}"
                 
+        elif IS_DEEPSEEK:
+            # API DeepSeek (compatível com OpenAI)
+            api_url = AI_API_URL or "https://api.deepseek.com/v1/chat/completions"
+            
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {AI_API_KEY}"
+            }
+            
+            payload = {
+                "model": AI_MODEL,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "temperature": 0.7,
+                "max_tokens": 1000
+            }
+        elif IS_GROQ:
+            # API Groq (compatível com OpenAI)
+            api_url = AI_API_URL or "https://api.groq.com/openai/v1/chat/completions"
+            
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {AI_API_KEY}"
+            }
+            
+            payload = {
+                "model": AI_MODEL,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "temperature": 0.7,
+                "max_tokens": 1000
+            }
         else:
             # API OpenAI (padrão)
             api_url = AI_API_URL or "https://api.openai.com/v1/chat/completions"
@@ -257,8 +336,29 @@ def call_external_ai_api(user_prompt: str):
             
             print(f" [+] [WORKER] Resposta recebida: Status {response.status_code} (tentativa {attempt + 1}/{max_retries})")
             
-            # Se for 429 (rate limit), tenta novamente com backoff exponencial
+            # Se for 429 (rate limit), verifica se é quota 0 ou rate limit normal
             if response.status_code == 429:
+                try:
+                    error_data = response.json()
+                    error_text = json.dumps(error_data)
+                    # Verifica se é quota 0 (limit: 0)
+                    if "limit: 0" in error_text or '"limit": 0' in error_text:
+                        error_msg = (
+                            "❌ Erro: Sua API key do Google Gemini não tem acesso ao plano gratuito ou a quota está zerada.\n\n"
+                            "🔍 O que fazer:\n"
+                            "1. Acesse https://aistudio.google.com/\n"
+                            "2. Verifique se sua API key está ativa\n"
+                            "3. Verifique o uso e quotas em: https://ai.dev/usage?tab=rate-limit\n"
+                            "4. Certifique-se de que o projeto tem acesso ao plano gratuito habilitado\n"
+                            "5. Se necessário, gere uma nova API key em um projeto diferente\n\n"
+                            "💡 Nota: Alguns modelos podem ter quota 0 no plano gratuito. Tente usar uma API key de um projeto que tenha acesso ao plano gratuito habilitado."
+                        )
+                        print(f" [!!!] {error_msg}")
+                        return error_msg
+                except:
+                    pass
+                
+                # Se for rate limit normal (não quota 0), tenta novamente
                 if attempt < max_retries - 1:
                     wait_time = retry_delay * (2 ** attempt)  # Backoff exponencial: 2s, 4s, 8s
                     print(f" [!!!] Rate limit atingido (429). Aguardando {wait_time}s antes de tentar novamente...")
@@ -292,10 +392,11 @@ def call_external_ai_api(user_prompt: str):
                 print(f" [!!!] Resposta da API: {response_data}")
                 return error_msg
             else:
-                # Formato OpenAI: {"choices": [{"message": {"content": "..."}}]}
+                # Formato OpenAI/DeepSeek/Groq: {"choices": [{"message": {"content": "..."}}]}
                 if "choices" in response_data and len(response_data["choices"]) > 0:
                     bot_response = response_data["choices"][0]["message"]["content"]
-                    print(f" [+] [WORKER] Resposta da IA (OpenAI) gerada com sucesso ({len(bot_response)} caracteres)")
+                    api_name = "Groq" if IS_GROQ else ("DeepSeek" if IS_DEEPSEEK else "OpenAI")
+                    print(f" [+] [WORKER] Resposta da IA ({api_name}) gerada com sucesso ({len(bot_response)} caracteres)")
                     return bot_response
                 else:
                     error_msg = "Erro: Resposta da API não contém 'choices' válido."
@@ -306,8 +407,42 @@ def call_external_ai_api(user_prompt: str):
             error_msg = f"Erro na API de IA: Status {response.status_code} - {response.text[:500]}"
             print(f" [!!!] {error_msg}")
             print(f" [!!!] Resposta completa: {response.text}")
+            
             # Tratamento específico para diferentes códigos de erro
-            if response.status_code == 404 and IS_GEMINI:
+            if response.status_code == 400:
+                # Erro 400: Pode ser modelo descontinuado ou inválido
+                try:
+                    error_data = response.json()
+                    error_text = json.dumps(error_data)
+                    if "decommissioned" in error_text.lower() or "no longer supported" in error_text.lower():
+                        return (
+                            f"❌ Erro: O modelo '{AI_MODEL}' foi descontinuado e não é mais suportado.\n\n"
+                            "🔍 O que fazer:\n"
+                            "1. Verifique os modelos disponíveis em: https://console.groq.com/docs/models\n"
+                            "2. Atualize o modelo no arquivo .env\n"
+                            "3. Modelos sugeridos: llama-3.3-70b-versatile, llama-3.3-8b-instant, mixtral-8x7b-32768\n\n"
+                            f"💡 Modelo atual configurado: {AI_MODEL}"
+                        )
+                except:
+                    pass
+            elif response.status_code == 402:
+                # Erro 402: Saldo insuficiente (DeepSeek)
+                try:
+                    error_data = response.json()
+                    if "Insufficient Balance" in str(error_data) or "insufficient" in str(error_data).lower():
+                        return (
+                            "❌ Erro: Saldo insuficiente na conta da API DeepSeek.\n\n"
+                            "🔍 O que fazer:\n"
+                            "1. Acesse https://platform.deepseek.com/\n"
+                            "2. Verifique o saldo da sua conta\n"
+                            "3. Adicione créditos se necessário\n"
+                            "4. Verifique se a API key está correta e ativa\n\n"
+                            "💡 Nota: A API DeepSeek requer créditos na conta para funcionar."
+                        )
+                except:
+                    pass
+                return "Erro: Saldo insuficiente na conta da API. Por favor, adicione créditos à sua conta."
+            elif response.status_code == 404 and IS_GEMINI:
                 return f"Erro: O modelo '{AI_MODEL}' não foi encontrado. Por favor, verifique se o modelo está correto (ex: gemini-2.0-flash, gemini-1.5-flash)."
             elif response.status_code == 429:
                 return f"Erro: Rate limit da API de IA (muitas requisições). Por favor, aguarde alguns instantes e tente novamente."
@@ -451,7 +586,8 @@ if __name__ == '__main__':
     print("=" * 60)
     print(" [WORKER] Iniciando IA Worker...")
     print(f" [WORKER] Modelo configurado: {AI_MODEL}")
-    print(f" [WORKER] Tipo de API: {'Gemini' if IS_GEMINI else 'OpenAI'}")
+    api_type_startup = "Groq" if IS_GROQ else ("DeepSeek" if IS_DEEPSEEK else ("Gemini" if IS_GEMINI else "OpenAI"))
+    print(f" [WORKER] Tipo de API: {api_type_startup}")
     print(f" [WORKER] API Key presente: {'Sim' if AI_API_KEY else 'NÃO - ERRO!'}")
     print(f" [WORKER] URL da API: {AI_API_URL or 'Usando padrão'}")
     print("=" * 60)
