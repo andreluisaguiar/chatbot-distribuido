@@ -17,6 +17,7 @@ Desenvolver um chatbot inteligente baseado em arquitetura distribuída, capaz de
 
 ### 📋 Documentação Rápida
 - **[COMANDOS.md](./COMANDOS.md)** - Lista completa de comandos Docker, logs, verificações e troubleshooting
+- **[DEPLOY.md](./DEPLOY.md)** - Guia completo de deploy em plataformas gratuitas (Railway, Render)
 - **[tests/README_LOAD_TEST.md](./tests/README_LOAD_TEST.md)** - Guia de testes de carga com K6
 
 ---

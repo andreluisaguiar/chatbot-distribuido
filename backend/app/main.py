@@ -11,6 +11,7 @@ from .services.database_service import init_db, AsyncSessionLocal, save_message
 from .services.rabbitmq_service import publish_message
 from .api.websocket import manager # Importa apenas o gerenciador de conexão (manager)
 from .services.metrics_service import get_metrics, websocket_message_duration, websocket_messages_total
+from .config import settings
 from prometheus_client import CONTENT_TYPE_LATEST # type: ignore
 from fastapi.middleware.cors import CORSMiddleware # type: ignore
 
@@ -41,9 +42,10 @@ app = FastAPI(
 # As métricas WebSocket são coletadas diretamente no endpoint
 
 # CORS para permitir front-end (React) se comunicar com a API
+# Em produção, configure CORS_ORIGINS com as URLs reais do frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
